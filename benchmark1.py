@@ -18,7 +18,7 @@ from pprint import pprint
 
 conn = connect_to_db()
 
-def BM1(bm_ids, emb_col):
+def BM1(args):
     '''
     For example, if we have 10 bm_ids, retrieve 10 most similar docs for each of them,
     and use the similarity score from the top 3 reranked docs, then we will get our average rerank score using 30/100 retrieved documents.
@@ -32,10 +32,10 @@ def BM1(bm_ids, emb_col):
     all_cosine_sim_scores = []
     all_ndcg_scores = []
 
-    for id in bm_ids:
-        emb = get_embedding_by_id(conn, emb_col, id)
-        emb_ids, cosine_sim_scores = similarity_search(conn, emb_col, emb, 10) # ignore the first because it's the same doc as emb1
-        embs = [get_embedding_by_id(conn, emb_col, id) for id in emb_ids]
+    for id in range(args.test_id_range[0], args.test_id_range[1]):
+        emb = get_embedding_by_id(conn, args.table_name, args.emb_col, id)
+        emb_ids, cosine_sim_scores = similarity_search(conn, args.table_name, args.emb_col, emb, 10) # ignore the first because it's the same doc as emb1
+        embs = [get_embedding_by_id(conn, args.table_name, args.emb_col, id) for id in emb_ids]
 
         result = co.rerank(query=emb,
                         documents=embs,
@@ -60,30 +60,6 @@ def BM1(bm_ids, emb_col):
     }
     
 
-
-
-# In[24]:
-
-
-# EMB_COL = 'mpnet_768d'
-# TEST_IDS = range(1,11)
-# BM1(TEST_IDS, EMB_COL)
-
-
-
-# EMB_COL = 'jina_768d'
-# TEST_IDS = range(1,11)
-# BM1(TEST_IDS, EMB_COL)
-
-# # In[5]:
-
-
-# EMB_COL = 'doc2vec_20d'
-# TEST_IDS = range(1,11)
-# BM1(TEST_IDS, EMB_COL) # VERY POOR PERFORMANCE
-
-
-
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Run BM1 with specified embedding column and test IDs range.")
@@ -91,25 +67,24 @@ if __name__ == "__main__":
     # Add arguments for embedding column and test IDs
     parser.add_argument("--emb_col", type=str, required=True, 
                         help="Name of the embedding column to use (e.g., 'mpnet_768d', 'jina_768d', 'doc2vec_20d').")
-    parser.add_argument("--test_ids", type=int, nargs=2, required=True, metavar=('START', 'END'),
+    parser.add_argument("--table_name", type=str, required=True, 
+                        help="Name of the table to use (e.g., conversations_chunk2034char).")
+    parser.add_argument("--test_id_range", type=int, nargs=2, required=True, metavar=('START', 'END'),
                         help="Range of test IDs to use in the format: range(START, END).")
     
     args = parser.parse_args()
 
-    log_args(args) # MLFLOW PART 1
 
-    test_ids = range(args.test_ids[0], args.test_ids[1]) 
-
-    mlflow.autolog() # MLFLOW PART 2
     mlflow.set_experiment("BM1")
     mlflow.end_run()
     with mlflow.start_run() as run: # MLFLOW PART 3
-        results = BM1(test_ids, args.emb_col)
-        print_auto_logged_info(mlflow.get_run(run_id=run.info.run_id))
+        log_args(args) # MLFLOW PART 1
+        results = BM1(args)
+        mlflow.log_dict(results, "results.json")
+        for key, value in results.items():
+            mlflow.log_metric(f"avg_{key}", np.mean(value))
 
-    print_auto_logged_info(run.info.run_id)
     pprint(results)
-    breakpoint()
 
 
 

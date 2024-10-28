@@ -33,7 +33,7 @@ def rerank_metric(co, query, docs, top_n=10):
     return np.mean([result.relevance_score for result in results.results])
 
 
-def similarity_search(conn, emb_name, embedding, n_results=10):
+def similarity_search(conn, table_name, emb_name, embedding, n_results=10):
     """
     Perform a similarity search for a given embedding.
 
@@ -53,7 +53,7 @@ def similarity_search(conn, emb_name, embedding, n_results=10):
         with conn.cursor() as cur:
             query = f"""
             SELECT id, 1 - ({emb_name} <=> '{embedding}') AS cosine_sim
-            FROM conversations
+            FROM {table_name}
             ORDER BY cosine_sim DESC
             LIMIT {n_results} OFFSET 1;
             """
@@ -68,10 +68,10 @@ def similarity_search(conn, emb_name, embedding, n_results=10):
     return ids, cosine_sim_scores
 
 
-def get_embedding_by_id(conn, emb_name, id):
+def get_embedding_by_id(conn, table_name, emb_name, id):
     try:
         with conn.cursor() as cur:
-            query = f"SELECT {emb_name} FROM conversations WHERE id = %s"
+            query = f"SELECT {emb_name} FROM {table_name} WHERE id = %s"
             cur.execute(query, (id,))
             results = cur.fetchone()
     except Exception as e:
@@ -92,13 +92,13 @@ def log_args(args):
         log_param(key, value)
     print("Logged parameters:", vars(args))
 
-def print_auto_logged_info(run_id):
-    tags = {k: v for k, v in run_id.data.tags.items() if not k.startswith("mlflow.")}
-    artifacts = [f.path for f in MlflowClient().list_artifacts(run_id.info.run_id, "model")]
-    print(f"run_id: {run_id.info.run_id}")
+def print_auto_logged_info(run):
+    tags = {k: v for k, v in run.data.tags.items() if not k.startswith("mlflow.")}
+    artifacts = [f.path for f in MlflowClient().list_artifacts(run.info.run_id, "model")]
+    print(f"run_id: {run.info.run_id}")
     print(f"artifacts: {artifacts}")
-    print(f"params: {run_id.data.params}")
-    print(f"metrics: {run_id.data.metrics}")
+    print(f"params: {run.data.params}")
+    print(f"metrics: {run.data.metrics}")
     print(f"tags: {tags}")
 
 # import json
